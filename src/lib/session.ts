@@ -2,11 +2,18 @@ import "server-only";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 
-const secretKey = process.env.SESSION_SECRET;
-if (!secretKey) {
-  throw new Error("SESSION_SECRET environment variable is not set");
+// Read lazily, not at module scope: Next.js imports this module while
+// collecting page/route data at build time, before env vars are
+// necessarily available (e.g. a fresh Vercel project before secrets are
+// configured) — throwing at import time fails the build itself rather than
+// surfacing a clear runtime error when a session is actually requested.
+function getEncodedKey() {
+  const secretKey = process.env.SESSION_SECRET;
+  if (!secretKey) {
+    throw new Error("SESSION_SECRET environment variable is not set");
+  }
+  return new TextEncoder().encode(secretKey);
 }
-const encodedKey = new TextEncoder().encode(secretKey);
 
 const COOKIE_NAME = "rawwij_session";
 const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -21,13 +28,13 @@ async function encrypt(payload: SessionPayload) {
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("30d")
-    .sign(encodedKey);
+    .sign(getEncodedKey());
 }
 
 async function decrypt(token: string | undefined) {
   if (!token) return null;
   try {
-    const { payload } = await jwtVerify(token, encodedKey, {
+    const { payload } = await jwtVerify(token, getEncodedKey(), {
       algorithms: ["HS256"],
     });
     return payload as unknown as SessionPayload;
