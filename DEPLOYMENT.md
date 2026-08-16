@@ -42,6 +42,14 @@
 3. أضف نفس متغيرات البيئة الموضّحة أعلاه في `.env.example` (بدون مرجع
    `${{Postgres...}}` الخاص بـ Railway — هنا تلصق رابط Neon/Supabase مباشرة
    في `DATABASE_URL`).
+   - إذا كان `DATABASE_URL` رابط **pooled** (عبر pgbouncer — الحالة
+     الافتراضية عند ربط Postgres من تبويب Storage في Vercel أو Neon)، أضف
+     متغيّر إضافي `DIRECT_URL` بنفس الرابط لكن بالاتصال **المباشر غير
+     المجمّع** (Direct/Unpooled connection — Vercel وNeon يوفّرونه عادة
+     كمتغيّر منفصل مثل `..._UNPOOLED` أو `..._NON_POOLING` بجانب
+     `DATABASE_URL`، أو زر "Direct connection" في لوحة Neon). بدون هذا،
+     `prisma migrate deploy` يفشل بخطأ `P1002` (timeout على advisory lock)
+     لأن pgbouncer بوضع transaction ما يدعم الأقفال الجلسية.
 4. اضغط Deploy. بعد أول نشر، حدّث `META_REDIRECT_URI` إلى دومين Vercel
    وأعد النشر.
 5. الترحيلات وتعبئة الباقات تُشغَّلان تلقائياً في كل نشر عبر سكربت
