@@ -1,52 +1,62 @@
 # نشر روّج (Deployment)
 
-الطريقة الأسهل: **Vercel** (تستضيف نفس فريق Next.js) + **Neon** أو **Supabase**
-لقاعدة بيانات PostgreSQL مُدارة. كلاهما لديه باقة مجانية تكفي للبداية.
+## الطريقة الموصى بها: Railway (استضافة + قاعدة بيانات في مكان واحد)
 
-## 1. قاعدة البيانات
-
-اختر واحدة (كلاهما مجاني للبداية):
-
-- [neon.tech](https://neon.tech) — أنشئ مشروعاً جديداً، انسخ رابط الاتصال
-  "Pooled connection" (مهم لبيئة serverless مثل Vercel).
-- [supabase.com](https://supabase.com) — من Project Settings → Database،
-  انسخ "Connection Pooling" URI.
-
-## 2. النشر على Vercel
-
-1. اذهب إلى [vercel.com/new](https://vercel.com/new) وسجّل دخول بحساب GitHub.
-2. اختر مستودع `media-tools-` وفرع `claude/quick-marketing-discounts-idd2mp`
-   (أو ادمجه إلى الفرع الرئيسي أولاً).
-3. أضف متغيرات البيئة (Environment Variables) — انسخها من `.env.example`:
-   - `DATABASE_URL` — رابط الاتصال المُجمّع (pooled) من الخطوة السابقة
-   - `SESSION_SECRET` — نص عشوائي طويل (شغّل `openssl rand -base64 32` محلياً)
-   - `META_APP_ID`, `META_APP_SECRET` — إن كانت متوفرة لديك
-   - `META_REDIRECT_URI` — بعد أول نشر، عدّلها إلى
-     `https://<domain-vercel>/api/integrations/meta/callback`
+1. اذهب إلى [railway.com](https://railway.com) وسجّل دخول بحساب GitHub.
+2. **New Project** → **Deploy from GitHub repo** → اختر `media-tools-`
+   وفرع `claude/quick-marketing-discounts-idd2mp`.
+3. داخل نفس المشروع: **+ New** → **Database** → **Add PostgreSQL**.
+   يُنشئ Railway خدمة قاعدة بيانات منفصلة تلقائياً بمتغيّر
+   `DATABASE_URL` خاص بها.
+4. افتح خدمة التطبيق (الـ repo) → تبويب **Variables** → أضف:
+   - `DATABASE_URL` = `${{Postgres.DATABASE_URL}}` (مرجع لقاعدة البيانات
+     التي أنشأتها في الخطوة السابقة — اكتبها بالضبط هكذا، Railway يفهمها
+     كمرجع تلقائي بين الخدمتين)
+   - `SESSION_SECRET` = نص عشوائي طويل (شغّل `openssl rand -base64 32`
+     محلياً وانسخ الناتج)
+   - `META_APP_ID`, `META_APP_SECRET` إن كانت متوفرة لديك
+   - `META_REDIRECT_URI` = اتركها فارغة الآن، وبعد أول نشر ستحصل على
+     دومين مثل `xxx.up.railway.app` — عدّلها حينها إلى
+     `https://<الدومين>/api/integrations/meta/callback`
    - باقي المتغيرات (`WHATSAPP_*`, إلخ) حسب توفرها
-4. اضغط Deploy.
+5. Railway يكتشف أنه مشروع Next.js تلقائياً (عبر Nixpacks) ويشغّل
+   `npm install` ثم `npm run build` ثم `npm run start`.
+   - `postinstall` يشغّل `prisma generate` تلقائياً أثناء التثبيت.
+   - `npm run start` يشغّل `prisma migrate deploy` قبل بدء الخادم — أي أن
+     قاعدة البيانات تُحدَّث تلقائياً في كل نشر، بدون خطوة يدوية.
+6. بعد اكتمال أول نشر: نفّذ التعبئة الأولية للباقات مرة واحدة فقط. من
+   تبويب التطبيق في Railway افتح **Shell** (أو ثبّت
+   [Railway CLI](https://docs.railway.com/guides/cli) محلياً وشغّل
+   `railway run npx tsx prisma/seed.ts`).
+7. من تبويب **Settings → Networking** فعّل **Generate Domain** للحصول على
+   رابط عام (`https://xxx.up.railway.app`)، ثم حدّث `META_REDIRECT_URI`
+   كما في الخطوة 4 وأعد النشر.
 
-`postinstall` في المشروع يشغّل `prisma generate` تلقائياً أثناء البناء —
-لا حاجة لخطوة يدوية.
+## بديل: Vercel + Neon/Supabase
 
-## 3. تشغيل الترحيلات (Migrations) على قاعدة الإنتاج
+استضافة منفصلة عن قاعدة البيانات — مناسب إن أردت الاستفادة من شبكة Vercel
+العالمية تحديداً.
 
-من جهازك، بعد ضبط `DATABASE_URL` في `.env` ليشير إلى قاعدة الإنتاج مؤقتاً:
+1. أنشئ قاعدة بيانات مجانية على [neon.tech](https://neon.tech) (انسخ رابط
+   "Pooled connection") أو [supabase.com](https://supabase.com) (انسخ
+   "Connection Pooling" URI من Project Settings → Database).
+2. على [vercel.com/new](https://vercel.com/new) اربط حساب GitHub واختر
+   مستودع `media-tools-` وفرع `claude/quick-marketing-discounts-idd2mp`.
+3. أضف نفس متغيرات البيئة الموضّحة أعلاه في `.env.example` (بدون مرجع
+   `${{Postgres...}}` الخاص بـ Railway — هنا تلصق رابط Neon/Supabase مباشرة
+   في `DATABASE_URL`).
+4. اضغط Deploy. بعد أول نشر، حدّث `META_REDIRECT_URI` إلى دومين Vercel
+   وأعد النشر.
+5. الترحيلات والتعبئة الأولية تُشغَّل يدوياً مرة واحدة من جهازك، بعد ضبط
+   `DATABASE_URL` في `.env` ليشير إلى قاعدة الإنتاج مؤقتاً:
+   ```bash
+   npx prisma migrate deploy
+   npx tsx prisma/seed.ts
+   ```
 
-```bash
-npx prisma migrate deploy
-npx tsx prisma/seed.ts
-```
-
-## 4. تحديث إعدادات Meta
+## تحديث إعدادات Meta بعد النشر
 
 في [developers.facebook.com](https://developers.facebook.com/apps)، أضف
 رابط النشر الفعلي (`https://<domain>/api/integrations/meta/callback`) في
-Valid OAuth Redirect URIs الخاصة بالتطبيق.
-
-## بدائل أخرى
-
-- **Railway** أو **Render**: يوفران استضافة + قاعدة PostgreSQL في نفس المكان،
-  بديل جيد إن أردت كل شيء في منصة واحدة بدل فصل الاستضافة عن قاعدة البيانات.
-- **استضافة ذاتية (VPS/Docker)**: ممكنة لكن تتطلب إعداد يدوي أكبر (عملية
-  build، عملية تشغيل `next start`، شهادة SSL) — غير موصى بها للبداية.
+Valid OAuth Redirect URIs الخاصة بالتطبيق — سواء كان الدومين من Railway أو
+Vercel.
