@@ -1,0 +1,271 @@
+// Rawwij (روّج) — Quick Marketing Tool for Discounts
+// Domain schema derived from the product BRD.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------- Merchant & auth ----------
+
+model Merchant {
+  id           String   @id @default(cuid())
+  crNumber     String   @unique
+  businessName String
+  phone        String   @unique
+  passwordHash String
+  city         String
+  createdAt    DateTime @default(now())
+
+  branches          Branch[]
+  discounts         Discount[]
+  campaigns         Campaign[]
+  channelConnections ChannelConnection[]
+}
+
+model Branch {
+  id         String   @id @default(cuid())
+  merchantId String
+  merchant   Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  name       String
+  city       String
+  district   String?
+  lat        Float?
+  lng        Float?
+  createdAt  DateTime @default(now())
+}
+
+// ---------- Discount system integration point ----------
+// This mirrors the external "نظام التخفيضات" contract (BRD section 22).
+// Backed today by MockDiscountProvider (see src/lib/discounts/); swap the
+// provider implementation to point at the real system without touching callers.
+
+model Discount {
+  id               String   @id @default(cuid())
+  externalId       String   @unique
+  merchantId       String
+  merchant         Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  title            String
+  category         String
+  products         String[]
+  discountPercent  Int
+  priceBefore      Decimal  @db.Decimal(10, 2)
+  priceAfter       Decimal  @db.Decimal(10, 2)
+  startDate        DateTime
+  endDate          DateTime
+  branchNames      String[]
+  city             String
+  source           DiscountSource @default(MOCK)
+  createdAt        DateTime @default(now())
+
+  campaigns Campaign[]
+}
+
+enum DiscountSource {
+  MOCK
+  EXTERNAL_SYSTEM
+}
+
+// ---------- Campaign ----------
+
+model Campaign {
+  id          String   @id @default(cuid())
+  merchantId  String
+  merchant    Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  discountId  String?
+  discount    Discount? @relation(fields: [discountId], references: [id])
+
+  objective   CampaignObjective @default(PROMOTE_DISCOUNT)
+  status      CampaignStatus    @default(DRAFT)
+
+  packageCode String?
+  package     MarketingPackage? @relation(fields: [packageCode], references: [code])
+
+  createdAt   DateTime @default(now())
+  launchedAt  DateTime?
+  elapsedSeconds Int?   // time-to-launch, captured for the "minutes to launch" KPI
+
+  creativeVariants   CreativeVariant[]
+  audience           AudienceTargeting?
+  channelAllocations CampaignChannelAllocation[]
+  payment            Payment?
+  launchTasks        LaunchTask[]
+  metrics            PerformanceMetric[]
+  activityLog        ActivityLogEntry[]
+}
+
+enum CampaignObjective {
+  AWARENESS
+  PROMOTE_DISCOUNT
+  STORE_VISITS
+  ONLINE_VISITS
+}
+
+enum CampaignStatus {
+  DRAFT
+  PENDING_PAYMENT
+  SCHEDULED
+  ACTIVE
+  PAUSED
+  COMPLETED
+  REJECTED
+  FAILED
+}
+
+model CreativeVariant {
+  id         String   @id @default(cuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  source     CreativeSource @default(AI)
+  tag        String
+  headline   String
+  body       String
+  selected   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}
+
+enum CreativeSource {
+  AI
+  MERCHANT_UPLOAD
+}
+
+model AudienceTargeting {
+  id                  String   @id @default(cuid())
+  campaignId          String   @unique
+  campaign            Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  radiusKm            Int      @default(5)
+  ageRanges           String[]
+  gender              String   @default("all")
+  interests           String[]
+  useOwnCustomerBase  Boolean  @default(false)
+  baseChannels        Json?    // { sms: false, whatsapp: true, email: false }
+}
+
+// ---------- Packages (fixed, seeded) ----------
+
+model MarketingPackage {
+  code        String   @id
+  name        String
+  price       Decimal  @db.Decimal(10, 2)
+  mediaSpend  Decimal  @db.Decimal(10, 2)
+  platformFee Decimal  @db.Decimal(10, 2)
+  description String
+  reachMin    Int
+  reachMax    Int
+  durationDays Int
+  channels    String[]
+  recommended Boolean  @default(false)
+
+  campaigns Campaign[]
+}
+
+model CampaignChannelAllocation {
+  id           String   @id @default(cuid())
+  campaignId   String
+  campaign     Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  channel      MarketingChannel
+  sharePercent Int
+  budgetAmount Decimal  @db.Decimal(10, 2)
+}
+
+enum MarketingChannel {
+  INSTAGRAM
+  FACEBOOK
+  GOOGLE
+  TIKTOK
+  SNAPCHAT
+  WHATSAPP
+  EMAIL
+}
+
+// ---------- Payment ----------
+
+model Payment {
+  id          String   @id @default(cuid())
+  campaignId  String   @unique
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  amount      Decimal  @db.Decimal(10, 2)
+  method      String
+  status      PaymentStatus @default(PENDING)
+  provider    String?
+  providerRef String?
+  createdAt   DateTime @default(now())
+  paidAt      DateTime?
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+// ---------- Channel connections (real OAuth-backed ad accounts) ----------
+
+model ChannelConnection {
+  id                 String   @id @default(cuid())
+  merchantId         String
+  merchant           Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  provider           MarketingChannel
+  status             ConnectionStatus @default(NOT_CONNECTED)
+  accessToken        String?
+  refreshToken       String?
+  externalAccountId  String?  // e.g. Meta ad account id (act_...)
+  externalAccountName String?
+  pageId             String?  // Meta Page id
+  instagramActorId   String?  // Meta connected IG business account id
+  connectedAt        DateTime?
+  expiresAt          DateTime?
+
+  @@unique([merchantId, provider])
+}
+
+enum ConnectionStatus {
+  NOT_CONNECTED
+  CONNECTED
+  ERROR
+  EXPIRED
+}
+
+// ---------- Launch tasks & activity ----------
+
+model LaunchTask {
+  id          String   @id @default(cuid())
+  campaignId  String
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  key         String
+  label       String
+  status      LaunchTaskStatus @default(PENDING)
+  sortOrder   Int
+  completedAt DateTime?
+}
+
+enum LaunchTaskStatus {
+  PENDING
+  RUNNING
+  DONE
+  FAILED
+}
+
+model PerformanceMetric {
+  id          String   @id @default(cuid())
+  campaignId  String
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  channel     MarketingChannel
+  reach       Int      @default(0)
+  impressions Int      @default(0)
+  clicks      Int      @default(0)
+  engagement  Int      @default(0)
+  capturedAt  DateTime @default(now())
+}
+
+model ActivityLogEntry {
+  id         String   @id @default(cuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  message    String
+  createdAt  DateTime @default(now())
+}
