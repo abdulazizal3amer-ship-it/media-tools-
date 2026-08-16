@@ -22,13 +22,10 @@
 5. Railway يكتشف أنه مشروع Next.js تلقائياً (عبر Nixpacks) ويشغّل
    `npm install` ثم `npm run build` ثم `npm run start`.
    - `postinstall` يشغّل `prisma generate` تلقائياً أثناء التثبيت.
-   - `npm run start` يشغّل `prisma migrate deploy` قبل بدء الخادم — أي أن
-     قاعدة البيانات تُحدَّث تلقائياً في كل نشر، بدون خطوة يدوية.
-6. بعد اكتمال أول نشر: نفّذ التعبئة الأولية للباقات مرة واحدة فقط. من
-   تبويب التطبيق في Railway افتح **Shell** (أو ثبّت
-   [Railway CLI](https://docs.railway.com/guides/cli) محلياً وشغّل
-   `railway run npx tsx prisma/seed.ts`).
-7. من تبويب **Settings → Networking** فعّل **Generate Domain** للحصول على
+   - `npm run start` يشغّل `prisma migrate deploy` ثم تعبئة الباقات
+     (`tsx prisma/seed.ts`) قبل بدء الخادم — أي أن قاعدة البيانات تُحدَّث
+     وتُعبَّأ تلقائياً في كل نشر، بدون خطوة يدوية.
+6. من تبويب **Settings → Networking** فعّل **Generate Domain** للحصول على
    رابط عام (`https://xxx.up.railway.app`)، ثم حدّث `META_REDIRECT_URI`
    كما في الخطوة 4 وأعد النشر.
 
@@ -47,14 +44,9 @@
    في `DATABASE_URL`).
 4. اضغط Deploy. بعد أول نشر، حدّث `META_REDIRECT_URI` إلى دومين Vercel
    وأعد النشر.
-5. الترحيلات تُشغَّل تلقائياً في كل نشر عبر سكربت `vercel-build`
-   (`prisma migrate deploy && next build`) — Vercel يكتشفه تلقائياً بدل
-   `build` العادي. التعبئة الأولية للباقات تُشغَّل يدوياً مرة واحدة فقط،
-   من جهازك بعد ضبط `DATABASE_URL` في `.env` ليشير إلى قاعدة الإنتاج
-   مؤقتاً:
-   ```bash
-   npx tsx prisma/seed.ts
-   ```
+5. الترحيلات وتعبئة الباقات تُشغَّلان تلقائياً في كل نشر عبر سكربت
+   `vercel-build` (`prisma migrate deploy && tsx prisma/seed.ts && next build`)
+   — Vercel يكتشفه تلقائياً بدل `build` العادي، فلا حاجة لأي خطوة يدوية.
 
 ## تحديث إعدادات Meta بعد النشر
 
