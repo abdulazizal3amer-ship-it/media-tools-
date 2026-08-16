@@ -47,10 +47,12 @@
    في `DATABASE_URL`).
 4. اضغط Deploy. بعد أول نشر، حدّث `META_REDIRECT_URI` إلى دومين Vercel
    وأعد النشر.
-5. الترحيلات والتعبئة الأولية تُشغَّل يدوياً مرة واحدة من جهازك، بعد ضبط
-   `DATABASE_URL` في `.env` ليشير إلى قاعدة الإنتاج مؤقتاً:
+5. الترحيلات تُشغَّل تلقائياً في كل نشر عبر سكربت `vercel-build`
+   (`prisma migrate deploy && next build`) — Vercel يكتشفه تلقائياً بدل
+   `build` العادي. التعبئة الأولية للباقات تُشغَّل يدوياً مرة واحدة فقط،
+   من جهازك بعد ضبط `DATABASE_URL` في `.env` ليشير إلى قاعدة الإنتاج
+   مؤقتاً:
    ```bash
-   npx prisma migrate deploy
    npx tsx prisma/seed.ts
    ```
 
